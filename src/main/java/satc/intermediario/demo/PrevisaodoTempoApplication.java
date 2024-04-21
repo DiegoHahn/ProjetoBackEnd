@@ -12,9 +12,14 @@ public class PrevisaodoTempoApplication {
 		SpringApplication.run(PrevisaodoTempoApplication.class, args);
 	}
 
-	//webclient para fazer as requisições
+	//Um webclient para cada API
 	@Bean
 	public WebClient webClientCoordenadas() {
 		return WebClient.create("https://geocoding-api.open-meteo.com");
+	}
+
+	@Bean
+	public WebClient webClientPrevisao() {
+		return WebClient.create("https://api.open-meteo.com");
 	}
 }

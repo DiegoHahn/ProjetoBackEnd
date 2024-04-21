@@ -6,49 +6,44 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
-import satc.intermediario.demo.model.CoordenadasInterface;
+import satc.intermediario.demo.model.CoordendasReq;
+import satc.intermediario.demo.model.PrevisaoReq;
 
 @Service
-public class CoordenadasService implements CoordenadasInterface {
+public class CoordenadasService {
 
     @Autowired
     private WebClient webClientCoordenadas;
 
-    //Mono funciona como um optional, pode ter um valor ou não
-    //Faz a requisição para a api e retorna um objeto {results[dados], códigoDaReq}
-    public Mono<String> getDados(String nomeCidade) {
-        return webClientCoordenadas.get().uri(uriBuilder -> uriBuilder
-                        .path("/v1/search")
-                        .queryParam("name", nomeCidade)
-                        .build())
+    //Mono funciona como um optional, mas para programação assíncrona
+    //Faz a requisição para a api de geocode com o nome da cidade e o forecastdays do coordenadasReq, e retorna um objeto {results[dados], códigoDaReq} com as coordenadas
+    public Mono<PrevisaoReq> getDados(CoordendasReq coordenadasReq) {
+        String nomeCidade = coordenadasReq.cidade();
+        int forecastDays = coordenadasReq.forecastDays();
+        return webClientCoordenadas.get()
+                .uri(uriBuilder -> uriBuilder.path("/v1/search").queryParam("name", nomeCidade).build())
                 .retrieve()
                 .bodyToMono(String.class)
-                .flatMap(this::processaResposta);
+                .flatMap(response -> processaResposta(response, forecastDays)); //passa o forecastDays para o processaResposta junto com as coordenadas
     }
 
-    //Processamento dos dados da resposta e tratamento de erro
-    private Mono<String> processaResposta(String response) {
+    private Mono<PrevisaoReq> processaResposta(String response, int forecastDays) {
         try {
             //Desserealizando a resposta com JsonNode da biblioteca Jackson
             JsonNode dadosCidade = new ObjectMapper().readTree(response);
 
             //A resposta sempre traz o código da requisição, então o erro é só quando essa resposta não tem o campo results
             if (!dadosCidade.has("results")) {
-                return Mono.just("Nenhuma cidade encontrada com o nome fornecido.");
+                return Mono.just(new PrevisaoReq(0, 0, 0));
             }
-            //
-            //
-            ///mudar aqui pra passar as coordenadas pra um array depois
-            //
-            //
-            //
             JsonNode firstResult = dadosCidade.get("results").get(0);
-            String coordinates = "Latitude: " + firstResult.get("latitude").asText() +
-                    ", Longitude: " + firstResult.get("longitude").asText();
-            return Mono.just(coordinates);
+            double latitude = firstResult.get("latitude").asDouble();
+            double longitude = firstResult.get("longitude").asDouble();
+
+            //Retorna um objeto PrevisaoReq com as coordenadas e a quantidade de dias de previsão
+            return Mono.just(new PrevisaoReq(latitude, longitude, forecastDays));
         } catch (Exception e) {
             return Mono.error(new RuntimeException("Erro inesperado", e));
         }
     }
-
 }
